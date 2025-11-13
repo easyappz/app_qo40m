@@ -20,6 +20,110 @@ paths:
               schema:
                 $ref: '#/components/schemas/Message'
           description: ''
+  /api/auth/register/:
+    post:
+      operationId: auth_register
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberRegisterIn'
+      responses:
+        '201':
+          description: Member created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPublic'
+        '400':
+          description: Validation error
+  /api/auth/login/:
+    post:
+      operationId: auth_login
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthLoginIn'
+      responses:
+        '200':
+          description: Tokens returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokensOut'
+        '401':
+          description: Invalid credentials
+  /api/auth/refresh/:
+    post:
+      operationId: auth_refresh
+      tags:
+        - auth
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                refresh:
+                  type: string
+              required: [refresh]
+      responses:
+        '200':
+          description: New access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokensOut'
+  /api/me/:
+    get:
+      operationId: me_retrieve
+      tags:
+        - me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current member profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPublic'
+        '401':
+          description: Unauthorized
+    patch:
+      operationId: me_update
+      tags:
+        - me
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MemberUpdateIn'
+      responses:
+        '200':
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MemberPublic'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
 components:
   schemas:
     Message:
@@ -35,6 +139,73 @@ components:
       required:
         - message
         - timestamp
+    MemberPublic:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        avatar_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, username, email, created_at, updated_at]
+    MemberRegisterIn:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+        avatar_url:
+          type: string
+      required: [username, email, password]
+    MemberUpdateIn:
+      type: object
+      properties:
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        avatar_url:
+          type: string
+    AuthLoginIn:
+      oneOf:
+        - type: object
+          properties:
+            username:
+              type: string
+            password:
+              type: string
+          required: [username, password]
+        - type: object
+          properties:
+            email:
+              type: string
+              format: email
+            password:
+              type: string
+          required: [email, password]
+    AuthTokensOut:
+      type: object
+      properties:
+        access:
+          type: string
+        refresh:
+          type: string
+      required: [access]
   securitySchemes:
     bearerAuth:
       type: http
