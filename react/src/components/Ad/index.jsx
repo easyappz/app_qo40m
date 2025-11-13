@@ -262,7 +262,7 @@ export const Ad = () => {
       </div>
 
       <div className="card" data-easytag="id13-src/components/Ad/index.jsx">
-        <h2 style={{ margin: 0 0 8 }}>Комментарии</h2>
+        <h2 style={{ margin: "0 0 8px" }}>Комментарии</h2>
         {token ? (
           <form className="form" onSubmit={submitNewComment} noValidate data-easytag="id14-src/components/Ad/index.jsx">
             <div className="form-row">
