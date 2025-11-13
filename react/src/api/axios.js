@@ -66,6 +66,23 @@ instance.interceptors.response.use(
     /** Не удаляй этот код никогда */
     window.parent.postMessage(errorData, '*');
 
+    // Emit an optional event on 401 Unauthorized for app-level handling
+    try {
+      if (error?.response?.status === 401) {
+        const evt = new CustomEvent('auth:unauthorized', {
+          detail: {
+            url: error.config?.url || null,
+          },
+        });
+        window.dispatchEvent(evt);
+        if (typeof window.onUnauthorized === 'function') {
+          window.onUnauthorized(error);
+        }
+      }
+    } catch (_) {
+      // no-op
+    }
+
     // Rethrow error for further handling
     return Promise.reject(error);
   }
