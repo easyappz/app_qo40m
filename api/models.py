@@ -136,6 +136,33 @@ class CommentLike(models.Model):
 
 
 # -----------------------------
+# Ad Views tracking (unique window 24h)
+# -----------------------------
+
+class AdView(models.Model):
+    ad = models.ForeignKey(Ad, on_delete=models.CASCADE, related_name="views")
+    member = models.ForeignKey(
+        Member, on_delete=models.SET_NULL, null=True, blank=True, related_name="ad_views"
+    )
+    fingerprint = models.CharField(max_length=64, null=True, blank=True)
+    ip = models.GenericIPAddressField(null=True, blank=True)
+    ua_hash = models.CharField(max_length=64, null=True, blank=True)
+    viewed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["ad", "member", "fingerprint", "viewed_at"],
+                name="adview_unique_window_idx",
+            ),
+        ]
+        ordering = ["-viewed_at", "-id"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"AdView(ad={self.ad_id}, member={self.member_id}, fp={self.fingerprint}, at={self.viewed_at})"
+
+
+# -----------------------------
 # Signals to sync aggregate counters on Ad/Comment
 # -----------------------------
 

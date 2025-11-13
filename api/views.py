@@ -1,6 +1,6 @@
 from django.utils import timezone
 from django.db import transaction
-from django.db.models import Q, Avg, Count
+from django.db.models import Q, Avg, Count, Max
 from django.shortcuts import get_object_or_404
 from django.contrib.auth.hashers import check_password
 from rest_framework import status, permissions
@@ -22,8 +22,9 @@ from .serializers import (
     CommentSerializer,
     CommentCreateSerializer,
 )
-from .models import Member, Ad, Rating, Favorite, Comment, CommentLike
+from .models import Member, Ad, Rating, Favorite, Comment, CommentLike, AdView
 from .auth import MemberJWTAuthentication
+from .services import record_unique_view
 
 
 class HelloView(APIView):
@@ -291,6 +292,32 @@ class MyAdsAPIView(APIView):
 
 
 # -----------------------------
+# Views counter endpoint (unique per 24h)
+# -----------------------------
+
+class AdViewCreateAPIView(APIView):
+    """POST /api/ads/{id}/views - record unique view; returns updated views_count."""
+
+    authentication_classes = [MemberJWTAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="id", required=True, type=int, location=OpenApiParameter.PATH),
+        ],
+        responses={200: {"type": "object", "properties": {"views_count": {"type": "integer"}}, "required": ["views_count"]}},
+        description=(
+            "Record a unique view (24h window). Authenticated users are unique by (ad, member). "
+            "Guests are approximated by fingerprint sha256(ip + '|' + user_agent)."
+        ),
+    )
+    def post(self, request, ad_id: int, *args, **kwargs):
+        ad = get_object_or_404(Ad, pk=ad_id)
+        views_count = record_unique_view(request, ad)
+        return Response({"views_count": views_count}, status=status.HTTP_200_OK)
+
+
+# -----------------------------
 # Comments endpoints
 # -----------------------------
 
@@ -414,3 +441,47 @@ class ToggleCommentLikeAPIView(APIView):
 
         comment.refresh_from_db(fields=["likes_count"])
         return Response({"is_liked": is_liked, "likes_count": comment.likes_count}, status=status.HTTP_200_OK)
+
+
+# -----------------------------
+# Me -> History (recent unique ads by last view time)
+# -----------------------------
+
+class MyHistoryAPIView(APIView):
+    authentication_classes = [MemberJWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="limit", required=False, type=int, description="Number of unique ads to return (default 50, max 100)"),
+        ],
+        responses={200: {"type": "object"}},
+        description=(
+            "Return the last N ads (unique by ad) that the current member viewed, ordered by the latest view time desc."
+        ),
+    )
+    def get(self, request, *args, **kwargs):
+        member = getattr(request.user, "member", request.user)
+        try:
+            limit = int(request.query_params.get("limit", 50))
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(1, min(limit, 100))
+
+        latest = (
+            AdView.objects.filter(member=member)
+            .values("ad")
+            .annotate(viewed_at=Max("viewed_at"))
+            .order_by("-viewed_at")[:limit]
+        )
+        ad_ids = [row["ad"] for row in latest]
+        ad_map = {a.id: a for a in Ad.objects.filter(id__in=ad_ids)}
+
+        items = []
+        for row in latest:
+            ad = ad_map.get(row["ad"])
+            if not ad:
+                continue
+            items.append({"ad": AdListSerializer(ad).data, "viewed_at": row["viewed_at"]})
+
+        return Response({"items": items}, status=status.HTTP_200_OK)

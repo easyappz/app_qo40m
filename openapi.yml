@@ -124,6 +124,66 @@ paths:
           description: Validation error
         '401':
           description: Unauthorized
+  /api/me/favorites/:
+    get:
+      operationId: me_favorites
+      tags:
+        - me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Favorite ads of current member
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdCard'
+        '401':
+          description: Unauthorized
+  /api/me/ads/:
+    get:
+      operationId: me_ads
+      tags:
+        - me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ads owned by current member
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdCard'
+        '401':
+          description: Unauthorized
+  /api/me/history/:
+    get:
+      operationId: me_history
+      tags:
+        - me
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Last N unique ads viewed by the current member ordered by latest view time (unique by ad)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HistoryList'
+        '401':
+          description: Unauthorized
   /api/ads/popular/:
     get:
       operationId: ads_popular
@@ -233,6 +293,27 @@ paths:
                 $ref: '#/components/schemas/FavoriteOut'
         '401':
           description: Unauthorized
+        '404':
+          description: Not found
+  /api/ads/{id}/views/:
+    post:
+      operationId: ad_view_create
+      tags:
+        - ads
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Record a unique view (24h window) and return updated views_count. Auth users unique by (ad, member). Guests approximated by sha256(ip + '|' + user_agent).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ViewOut'
         '404':
           description: Not found
   /api/ads/{id}/comments/:
@@ -365,42 +446,6 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
-  /api/me/favorites/:
-    get:
-      operationId: me_favorites
-      tags:
-        - me
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Favorite ads of current member
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AdCard'
-        '401':
-          description: Unauthorized
-  /api/me/ads/:
-    get:
-      operationId: me_ads
-      tags:
-        - me
-      security:
-        - bearerAuth: []
-      responses:
-        '200':
-          description: Ads owned by current member
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AdCard'
-        '401':
-          description: Unauthorized
 components:
   schemas:
     Message:
@@ -609,6 +654,27 @@ components:
           type: integer
           nullable: true
       required: [text]
+    ViewOut:
+      type: object
+      properties:
+        views_count:
+          type: integer
+      required: [views_count]
+    HistoryList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              ad:
+                $ref: '#/components/schemas/AdCard'
+              viewed_at:
+                type: string
+                format: date-time
+            required: [ad, viewed_at]
+      required: [items]
   securitySchemes:
     bearerAuth:
       type: http
