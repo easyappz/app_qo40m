@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Member, Ad, Rating, Comment
+from .models import Member, Ad, Rating, Comment, ImportJob
 
 
 class MessageSerializer(serializers.Serializer):
@@ -207,3 +207,20 @@ class CommentCreateSerializer(serializers.Serializer):
         if not Comment.objects.filter(id=value).exists():
             raise serializers.ValidationError("Parent comment not found.")
         return value
+
+
+# -----------------------------
+# Import pipeline serializers
+# -----------------------------
+
+class ImportRequestSerializer(serializers.Serializer):
+    url = serializers.URLField()
+
+
+class ImportJobSerializer(serializers.ModelSerializer):
+    ad_id = serializers.IntegerField(source="ad.id", read_only=True)
+
+    class Meta:
+        model = ImportJob
+        fields = ["id", "url", "status", "retry_after", "message", "ad_id"]
+        read_only_fields = ["id", "status", "retry_after", "message", "ad_id"]

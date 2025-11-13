@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenRefreshView as SimpleJWTTokenRefreshView
 from drf_spectacular.utils import extend_schema, OpenApiParameter
+from rest_framework.viewsets import ViewSet
 
 from .serializers import (
     MessageSerializer,
@@ -21,10 +22,12 @@ from .serializers import (
     RatingInSerializer,
     CommentSerializer,
     CommentCreateSerializer,
+    ImportRequestSerializer,
+    ImportJobSerializer,
 )
-from .models import Member, Ad, Rating, Favorite, Comment, CommentLike, AdView
+from .models import Member, Ad, Rating, Favorite, Comment, CommentLike, AdView, ImportJob
 from .auth import MemberJWTAuthentication
-from .services import record_unique_view, fetch_avito_metadata
+from .services import record_unique_view, fetch_avito_metadata, import_listing_from_url, LocalRateLimitError
 
 
 class HelloView(APIView):
@@ -567,3 +570,49 @@ class MyHistoryAPIView(APIView):
             items.append({"ad": AdListSerializer(ad).data, "viewed_at": row["viewed_at"]})
 
         return Response({"items": items}, status=status.HTTP_200_OK)
+
+
+# -----------------------------
+# Import pipeline endpoints (ViewSet)
+# -----------------------------
+
+class ImportViewSet(ViewSet):
+    """Create import jobs (JWT required) and retrieve by id (public)."""
+
+    authentication_classes = [MemberJWTAuthentication]
+
+    def get_permissions(self):
+        if getattr(self, "action", None) == "create":
+            return [IsAuthenticated()]
+        return [AllowAny()]
+
+    @extend_schema(
+        request=ImportRequestSerializer,
+        responses={201: ImportJobSerializer},
+        description=(
+            "Create a new import job and attempt to import immediately. "
+            "Respects remote site's limits and surfaces HTTP 429 with retry_after guidance."
+        ),
+    )
+    def create(self, request):
+        ser = ImportRequestSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+
+        member = getattr(request.user, "member", request.user) if getattr(request.user, "is_authenticated", False) else None
+        job = ImportJob.objects.create(member=member, url=ser.validated_data["url"], status="processing")
+        try:
+            job, _ad = import_listing_from_url(job.url, job.member)
+        except LocalRateLimitError as e:
+            job.status = "blocked"
+            job.retry_after = int(e.seconds_left)
+            job.message = "Local rate limit hit. Please retry later."
+            job.save(update_fields=["status", "retry_after", "message", "updated_at"])
+        return Response(ImportJobSerializer(job).data, status=status.HTTP_201_CREATED)
+
+    @extend_schema(
+        responses={200: ImportJobSerializer},
+        description="Retrieve import job status by id.",
+    )
+    def retrieve(self, request, pk=None):
+        job = get_object_or_404(ImportJob, pk=pk)
+        return Response(ImportJobSerializer(job).data)

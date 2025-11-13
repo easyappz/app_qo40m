@@ -36,7 +36,8 @@ class Ad(models.Model):
         blank=True,
         related_name="ads",
     )
-    source_url = models.CharField(max_length=1000)
+    # Source URL of the listing (may be null for manually created ads)
+    source_url = models.URLField(null=True, blank=True, db_index=True)
     title = models.CharField(max_length=500)
     description = models.TextField(blank=True)
     price = models.PositiveIntegerField(default=0)  # cents
@@ -210,3 +211,42 @@ def _comment_like_deleted(sender, instance: CommentLike, **kwargs):
         likes_count=F("likes_count") - 1,
         updated_at=timezone.now(),
     )
+
+
+# -----------------------------
+# Import pipeline models
+# -----------------------------
+
+class ImportQuota(models.Model):
+    """Per-domain quota guard to enforce a minimal interval between requests."""
+
+    domain = models.CharField(max_length=255, unique=True)
+    last_request_at = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"ImportQuota({self.domain}) at {self.last_request_at}"
+
+
+class ImportJob(models.Model):
+    STATUS_CHOICES = [
+        ("queued", "queued"),
+        ("processing", "processing"),
+        ("done", "done"),
+        ("blocked", "blocked"),
+        ("error", "error"),
+    ]
+
+    member = models.ForeignKey("api.Member", null=True, on_delete=models.SET_NULL)
+    url = models.URLField()
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default="queued")
+    retry_after = models.IntegerField(null=True, blank=True)
+    message = models.TextField(null=True, blank=True)
+    ad = models.ForeignKey("api.Ad", null=True, blank=True, on_delete=models.SET_NULL)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"ImportJob({self.id}) {self.status} url={self.url} ad={self.ad_id}"

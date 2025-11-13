@@ -19,9 +19,11 @@ from .views import (
     ToggleCommentLikeAPIView,
     AdViewCreateAPIView,
     MyHistoryAPIView,
+    ImportViewSet,
 )
 
 router = DefaultRouter()
+router.register(r"imports", ImportViewSet, basename="imports")
 
 urlpatterns = [
     # Auth endpoints
@@ -48,7 +50,7 @@ urlpatterns = [
     path("comments/<int:comment_id>/", CommentDeleteAPIView.as_view(), name="comment-delete"),
     path("comments/<int:comment_id>/like/", ToggleCommentLikeAPIView.as_view(), name="comment-like-toggle"),
 
-    # DRF router (future ViewSets will be registered here)
+    # DRF router (ViewSets)
     path("", include(router.urls)),
 
     # Existing hello endpoint

@@ -457,6 +457,92 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
+  /api/imports/:
+    post:
+      operationId: imports_create
+      tags:
+        - imports
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+              required: [url]
+      responses:
+        '201':
+          description: Import job created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  url:
+                    type: string
+                  status:
+                    type: string
+                    enum: [done, queued, processing, blocked, error]
+                  retry_after:
+                    type: integer
+                    nullable: true
+                  message:
+                    type: string
+                    nullable: true
+                  ad_id:
+                    type: integer
+                    nullable: true
+                required: [id, url, status]
+        '400':
+          description: Bad request
+        '401':
+          description: Unauthorized
+        '429':
+          description: Rate limited (local or remote)
+  /api/imports/{id}/:
+    get:
+      operationId: imports_retrieve
+      tags:
+        - imports
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Import job status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  url:
+                    type: string
+                  status:
+                    type: string
+                    enum: [done, queued, processing, blocked, error]
+                  retry_after:
+                    type: integer
+                    nullable: true
+                  message:
+                    type: string
+                    nullable: true
+                  ad_id:
+                    type: integer
+                    nullable: true
+                required: [id, url, status]
 components:
   schemas:
     Message:
