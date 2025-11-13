@@ -48,6 +48,8 @@ export const Ad = () => {
   const [replyError, setReplyError] = useState('');
 
   const [likedMap, setLikedMap] = useState({}); // commentId -> boolean
+  const [likeError, setLikeError] = useState('');
+  const [authError, setAuthError] = useState('');
 
   useEffect(() => {
     let mounted = true;
@@ -80,6 +82,15 @@ export const Ad = () => {
       mounted = false;
     };
   }, [adId, token]);
+
+  // Listen for global 401 events from axios and show a compact alert in the comments section
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setAuthError('Сессия истекла. Пожалуйста, войдите заново.');
+    };
+    window.addEventListener('auth:unauthorized', onUnauthorized);
+    return () => window.removeEventListener('auth:unauthorized', onUnauthorized);
+  }, []);
 
   const photos = useMemo(() => {
     if (!ad || !Array.isArray(ad.photos) || ad.photos.length === 0) {
@@ -170,12 +181,13 @@ export const Ad = () => {
 
   const toggleLike = async (commentId) => {
     if (!ensureAuth()) return;
+    setLikeError('');
     try {
       const res = await toggleCommentLike(commentId);
       setLikedMap((m) => ({ ...m, [commentId]: Boolean(res.is_liked) }));
       setComments((prev) => prev.map((c) => (c.id === commentId ? { ...c, likes_count: res.likes_count } : c)));
-    } catch (_err) {
-      // Non-blocking; optionally show toast
+    } catch (err) {
+      setLikeError(err.message || 'Не удалось поставить лайк');
     }
   };
 
@@ -209,6 +221,8 @@ export const Ad = () => {
 
   if (!ad) return null;
 
+  const headerAlerts = [commentsError, likeError, authError].filter(Boolean);
+
   return (
     <section className="ad-page" data-easytag="id1-src/components/Ad/index.jsx">
       <div className="card" data-easytag="id2-src/components/Ad/index.jsx">
@@ -221,8 +235,8 @@ export const Ad = () => {
             ))}
           </div>
           <div className="ad-info" data-easytag="id4-src/components/Ad/index.jsx">
-            <h1 className="h1" style={{ marginBottom: 6 }}>{ad.title}</h1>
-            <div className="muted" style={{ marginBottom: 12 }}>
+            <h1 className="h1" style={{ marginBottom: '6px' }}>{ad.title}</h1>
+            <div className="muted" style={{ marginBottom: '12px' }}>
               <a href={ad.source_url} target="_blank" rel="noreferrer" className="nav-link" data-easytag="id5-src/components/Ad/index.jsx">Открыть на Авито ↗</a>
             </div>
             <div className="ad-price" data-easytag="id6-src/components/Ad/index.jsx">{formatPriceRub(ad.price)}</div>
@@ -262,7 +276,16 @@ export const Ad = () => {
       </div>
 
       <div className="card" data-easytag="id13-src/components/Ad/index.jsx">
-        <h2 style={{ margin: "0 0 8px" }}>Комментарии</h2>
+        <h2 style={{ margin: '0 0 8px' }} data-easytag="id13-title-src/components/Ad/index.jsx">Комментарии</h2>
+
+        {headerAlerts.length > 0 ? (
+          <div className="error small" role="alert" data-easytag="id13-alert-src/components/Ad/index.jsx">
+            {headerAlerts.map((msg, i) => (
+              <div key={i}>{msg}</div>
+            ))}
+          </div>
+        ) : null}
+
         {token ? (
           <form className="form" onSubmit={submitNewComment} noValidate data-easytag="id14-src/components/Ad/index.jsx">
             <div className="form-row">
@@ -287,7 +310,6 @@ export const Ad = () => {
         )}
 
         {commentsLoading ? <div className="muted">Загрузка комментариев…</div> : null}
-        {commentsError ? <div className="error" role="alert">{commentsError}</div> : null}
 
         <div className="comments" data-easytag="id18-src/components/Ad/index.jsx">
           {comments.map((c) => (
@@ -310,7 +332,7 @@ export const Ad = () => {
               </div>
               <div className="comment-text">{c.text}</div>
               {c.replies_count ? (
-                <div className="muted small" style={{ marginTop: 6 }}>Ответов: {c.replies_count}</div>
+                <div className="muted small" style={{ marginTop: '6px' }}>Ответов: {c.replies_count}</div>
               ) : null}
 
               {replyForId === c.id ? (
