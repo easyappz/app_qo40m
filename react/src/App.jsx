@@ -16,7 +16,7 @@ function App() {
   useEffect(() => {
     if (typeof window !== 'undefined' && typeof window.handleRoutes === 'function') {
       /** Нужно передавать список существующих роутов */
-      window.handleRoutes(['/', '/register', '/login', '/ad/:id', '/profile']);
+      window.handleRoutes(['/', '/login', '/register', '/profile', '/ad/:id', '/404']);
     }
   }, []);
 
