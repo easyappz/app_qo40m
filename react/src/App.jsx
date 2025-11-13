@@ -8,7 +8,7 @@ import MainLayout from './components/Layout/MainLayout';
 import NotFound from './components/NotFound';
 import { Register } from './components/Auth/Register';
 import { Login } from './components/Auth/Login';
-import { AdPage } from './components/Ad/AdPage';
+import { Ad } from './components/Ad';
 import { Profile } from './components/Profile';
 
 function App() {
@@ -27,7 +27,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/register" element={<Register />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/ad/:id" element={<AdPage />} />
+          <Route path="/ad/:id" element={<Ad />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
         <Route path="*" element={<NotFound />} />

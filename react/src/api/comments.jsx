@@ -14,12 +14,14 @@ function extractErrorMessage(error) {
   return error?.message || 'Unknown error';
 }
 
-export async function listByAd(adId, { page } = {}) {
+export async function listByAd(adId, { page, parent } = {}) {
   try {
     const limit = 20;
     const p = typeof page === 'number' && page > 1 ? page : 1;
     const offset = (p - 1) * limit;
-    const res = await instance.get(`/api/ads/${adId}/comments/`, { params: { limit, offset } });
+    const params = { limit, offset };
+    if (parent !== undefined && parent !== null) params.parent = parent;
+    const res = await instance.get(`/api/ads/${adId}/comments/`, { params });
     return res.data;
   } catch (error) {
     throw new Error(extractErrorMessage(error));
