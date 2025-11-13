@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Member
+from .models import Member, Ad, Rating
 
 
 class MessageSerializer(serializers.Serializer):
@@ -76,3 +76,63 @@ class MemberUpdateSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"email": "Email already in use."})
 
         return attrs
+
+
+# Ads
+class AdSerializer(serializers.ModelSerializer):
+    owner = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Ad
+        fields = [
+            "id",
+            "owner",
+            "source_url",
+            "title",
+            "description",
+            "price",
+            "photos",
+            "views_count",
+            "comments_count",
+            "likes_count",
+            "avg_rating",
+            "ratings_count",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "owner",
+            "views_count",
+            "comments_count",
+            "likes_count",
+            "avg_rating",
+            "ratings_count",
+            "created_at",
+            "updated_at",
+        ]
+
+
+class AdListSerializer(serializers.ModelSerializer):
+    owner = serializers.PrimaryKeyRelatedField(read_only=True)
+
+    class Meta:
+        model = Ad
+        fields = [
+            "id",
+            "owner",
+            "title",
+            "price",
+            "photos",
+            "views_count",
+            "comments_count",
+            "likes_count",
+            "avg_rating",
+            "ratings_count",
+            "created_at",
+        ]
+        read_only_fields = fields
+
+
+class RatingInSerializer(serializers.Serializer):
+    value = serializers.IntegerField(min_value=1, max_value=5)

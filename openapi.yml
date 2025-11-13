@@ -124,6 +124,153 @@ paths:
           description: Validation error
         '401':
           description: Unauthorized
+  /api/ads/popular/:
+    get:
+      operationId: ads_popular
+      tags:
+        - ads
+      security: []
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: Popular ads list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdCard'
+                  next_offset:
+                    type: integer
+                    nullable: true
+                required: [items]
+  /api/ads/{id}/:
+    get:
+      operationId: ad_detail
+      tags:
+        - ads
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Ad detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdDetail'
+        '404':
+          description: Not found
+  /api/ads/{id}/ratings/:
+    post:
+      operationId: ad_rate
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingIn'
+      responses:
+        '200':
+          description: Updated ad with new rating stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdDetail'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /api/ads/{id}/favorite/:
+    post:
+      operationId: ad_favorite_toggle
+      tags:
+        - ads
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Favorite toggled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteOut'
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
+  /api/me/favorites/:
+    get:
+      operationId: me_favorites
+      tags:
+        - me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Favorite ads of current member
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdCard'
+        '401':
+          description: Unauthorized
+  /api/me/ads/:
+    get:
+      operationId: me_ads
+      tags:
+        - me
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Ads owned by current member
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdCard'
+        '401':
+          description: Unauthorized
 components:
   schemas:
     Message:
@@ -206,6 +353,91 @@ components:
         refresh:
           type: string
       required: [access]
+    AdCard:
+      type: object
+      properties:
+        id:
+          type: integer
+        owner:
+          type: integer
+          nullable: true
+        title:
+          type: string
+        price:
+          type: integer
+          description: Price in minor currency units (cents)
+        photos:
+          type: array
+          items:
+            type: string
+        views_count:
+          type: integer
+        comments_count:
+          type: integer
+        likes_count:
+          type: integer
+        avg_rating:
+          type: number
+          format: float
+        ratings_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+      required: [id, title, price, photos, views_count, comments_count, likes_count, avg_rating, ratings_count, created_at]
+    AdDetail:
+      type: object
+      properties:
+        id:
+          type: integer
+        owner:
+          type: integer
+          nullable: true
+        source_url:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          type: integer
+          description: Price in minor currency units (cents)
+        photos:
+          type: array
+          items:
+            type: string
+        views_count:
+          type: integer
+        comments_count:
+          type: integer
+        likes_count:
+          type: integer
+        avg_rating:
+          type: number
+          format: float
+        ratings_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required: [id, title, price, photos, views_count, comments_count, likes_count, avg_rating, ratings_count, created_at, updated_at, source_url]
+    RatingIn:
+      type: object
+      properties:
+        value:
+          type: integer
+          minimum: 1
+          maximum: 5
+      required: [value]
+    FavoriteOut:
+      type: object
+      properties:
+        is_favorite:
+          type: boolean
+      required: [is_favorite]
   securitySchemes:
     bearerAuth:
       type: http
