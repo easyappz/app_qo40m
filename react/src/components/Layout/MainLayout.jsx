@@ -8,6 +8,7 @@ const MainLayout = () => {
   const handleLogout = () => {
     if (typeof window !== 'undefined') {
       window.localStorage.removeItem('token');
+      window.localStorage.removeItem('refreshToken');
     }
     navigate('/login');
   };
@@ -21,7 +22,7 @@ const MainLayout = () => {
             <NavLink to="/" className="nav-link">Главная</NavLink>
             <NavLink to="/profile" className="nav-link">Профиль</NavLink>
             {token ? (
-              <button type="button" className="btn btn-link" onClick={handleLogout}>Выйти</button>
+              <button type="button" className="btn btn-link" onClick={handleLogout} data-easytag="id2-src/components/Layout/MainLayout.jsx">Выйти</button>
             ) : (
               <NavLink to="/login" className="nav-link">Войти</NavLink>
             )}
