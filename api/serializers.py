@@ -1,7 +1,7 @@
 from django.contrib.auth.hashers import make_password
 from rest_framework import serializers
 
-from .models import Member, Ad, Rating
+from .models import Member, Ad, Rating, Comment
 
 
 class MessageSerializer(serializers.Serializer):
@@ -21,6 +21,13 @@ class MemberSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
         read_only_fields = ["id", "created_at", "updated_at"]
+
+
+class MemberMiniSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Member
+        fields = ["id", "username", "avatar_url"]
+        read_only_fields = fields
 
 
 class MemberRegisterSerializer(serializers.ModelSerializer):
@@ -136,3 +143,43 @@ class AdListSerializer(serializers.ModelSerializer):
 
 class RatingInSerializer(serializers.Serializer):
     value = serializers.IntegerField(min_value=1, max_value=5)
+
+
+# -----------------------------
+# Comments
+# -----------------------------
+
+class CommentSerializer(serializers.ModelSerializer):
+    author = MemberMiniSerializer(read_only=True)
+    ad = serializers.PrimaryKeyRelatedField(read_only=True)
+    parent = serializers.PrimaryKeyRelatedField(read_only=True)
+    replies_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Comment
+        fields = [
+            "id",
+            "ad",
+            "author",
+            "parent",
+            "text",
+            "likes_count",
+            "created_at",
+            "replies_count",
+        ]
+        read_only_fields = fields
+
+    def get_replies_count(self, obj: Comment) -> int:
+        return obj.replies.count()
+
+
+class CommentCreateSerializer(serializers.Serializer):
+    text = serializers.CharField(allow_blank=False, max_length=10000)
+    parent = serializers.IntegerField(required=False, allow_null=True)
+
+    def validate_parent(self, value):
+        if value is None:
+            return None
+        if not Comment.objects.filter(id=value).exists():
+            raise serializers.ValidationError("Parent comment not found.")
+        return value

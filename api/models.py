@@ -1,4 +1,8 @@
 from django.db import models
+from django.db.models import F
+from django.db.models.signals import post_delete, post_save
+from django.dispatch import receiver
+from django.utils import timezone
 
 
 class Member(models.Model):
@@ -22,6 +26,7 @@ class Ad(models.Model):
     Notes:
     - price stores value in integer cents (minor currency units).
     - photos is a JSON list of absolute URLs.
+    - likes_count aggregates likes on all comments of this ad.
     """
 
     owner = models.ForeignKey(
@@ -88,3 +93,93 @@ class Rating(models.Model):
 
     def __str__(self) -> str:  # pragma: no cover
         return f"Rating(member={self.member_id}, ad={self.ad_id}, value={self.value})"
+
+
+# -----------------------------
+# Comments & Likes
+# -----------------------------
+
+class Comment(models.Model):
+    ad = models.ForeignKey(Ad, on_delete=models.CASCADE, related_name="comments")
+    author = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="comments")
+    parent = models.ForeignKey(
+        "self", on_delete=models.CASCADE, null=True, blank=True, related_name="replies"
+    )
+    text = models.TextField()
+    likes_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["ad", "created_at"], name="comment_ad_created_idx"),
+        ]
+        ordering = ["created_at", "id"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"Comment({self.id}) on Ad({self.ad_id}) by Member({self.author_id}): {self.text[:40]}"
+
+
+class CommentLike(models.Model):
+    comment = models.ForeignKey(Comment, on_delete=models.CASCADE, related_name="likes")
+    member = models.ForeignKey(Member, on_delete=models.CASCADE, related_name="comment_likes")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["comment", "member"], name="uniq_comment_member_like"),
+        ]
+        ordering = ["-created_at", "-id"]
+
+    def __str__(self) -> str:  # pragma: no cover
+        return f"CommentLike(comment={self.comment_id}, member={self.member_id})"
+
+
+# -----------------------------
+# Signals to sync aggregate counters on Ad/Comment
+# -----------------------------
+
+@receiver(post_save, sender=Comment)
+def _comment_created(sender, instance: Comment, created: bool, **kwargs):
+    if created:
+        Ad.objects.filter(id=instance.ad_id).update(
+            comments_count=F("comments_count") + 1,
+            updated_at=timezone.now(),
+        )
+
+
+@receiver(post_delete, sender=Comment)
+def _comment_deleted(sender, instance: Comment, **kwargs):
+    Ad.objects.filter(id=instance.ad_id).update(
+        comments_count=F("comments_count") - 1,
+        updated_at=timezone.now(),
+    )
+
+
+@receiver(post_save, sender=CommentLike)
+def _comment_like_created(sender, instance: CommentLike, created: bool, **kwargs):
+    if created:
+        # Update comment likes_count
+        Comment.objects.filter(id=instance.comment_id).update(
+            likes_count=F("likes_count") + 1,
+            updated_at=timezone.now(),
+        )
+        # Update ad aggregated likes_count
+        ad_id = instance.comment.ad_id
+        Ad.objects.filter(id=ad_id).update(
+            likes_count=F("likes_count") + 1,
+            updated_at=timezone.now(),
+        )
+
+
+@receiver(post_delete, sender=CommentLike)
+def _comment_like_deleted(sender, instance: CommentLike, **kwargs):
+    Comment.objects.filter(id=instance.comment_id).update(
+        likes_count=F("likes_count") - 1,
+        updated_at=timezone.now(),
+    )
+    ad_id = instance.comment.ad_id
+    Ad.objects.filter(id=ad_id).update(
+        likes_count=F("likes_count") - 1,
+        updated_at=timezone.now(),
+    )

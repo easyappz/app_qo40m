@@ -19,8 +19,10 @@ from .serializers import (
     AdListSerializer,
     AdSerializer,
     RatingInSerializer,
+    CommentSerializer,
+    CommentCreateSerializer,
 )
-from .models import Member, Ad, Rating, Favorite
+from .models import Member, Ad, Rating, Favorite, Comment, CommentLike
 from .auth import MemberJWTAuthentication
 
 
@@ -286,3 +288,129 @@ class MyAdsAPIView(APIView):
         member = getattr(request.user, "member", request.user)
         ads = Ad.objects.filter(owner=member).order_by("-created_at", "-id")
         return Response(AdListSerializer(list(ads), many=True).data, status=status.HTTP_200_OK)
+
+
+# -----------------------------
+# Comments endpoints
+# -----------------------------
+
+class AdCommentsListCreateAPIView(APIView):
+    """GET list comments of ad (paginated, by created_at). POST create comment (JWT)."""
+
+    authentication_classes = [MemberJWTAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(name="id", required=True, type=int, location=OpenApiParameter.PATH),
+            OpenApiParameter(name="limit", required=False, type=int, description="Number of items to return (default 20)"),
+            OpenApiParameter(name="offset", required=False, type=int, description="Offset for pagination (default 0)"),
+            OpenApiParameter(name="parent", required=False, type=int, description="If provided, returns replies for this comment id. If omitted, returns top-level comments."),
+        ],
+        responses={200: {"type": "object"}},
+        description="List comments for ad by created_at. If parent is set, returns replies only.",
+    )
+    def get(self, request, ad_id: int, *args, **kwargs):
+        ad = get_object_or_404(Ad, pk=ad_id)
+        try:
+            limit = int(request.query_params.get("limit", 20))
+        except (TypeError, ValueError):
+            limit = 20
+        try:
+            offset = int(request.query_params.get("offset", 0))
+        except (TypeError, ValueError):
+            offset = 0
+        parent = request.query_params.get("parent")
+        parent_id = None
+        if parent is not None:
+            try:
+                parent_id = int(parent)
+            except (TypeError, ValueError):
+                return Response({"parent": "Must be an integer."}, status=status.HTTP_400_BAD_REQUEST)
+
+        limit = max(1, min(limit, 100))
+        offset = max(0, offset)
+
+        qs = Comment.objects.select_related("author").filter(ad=ad)
+        if parent_id is None:
+            qs = qs.filter(parent__isnull=True)
+        else:
+            qs = qs.filter(parent_id=parent_id)
+
+        qs = qs.order_by("created_at", "id")
+        total = qs.count()
+        items = list(qs[offset : offset + limit])
+        data = CommentSerializer(items, many=True).data
+        next_offset = offset + limit if (offset + limit) < total else None
+        return Response({"items": data, "next_offset": next_offset}, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=CommentCreateSerializer,
+        responses={201: CommentSerializer, 400: {"type": "object"}, 401: {"type": "object"}},
+        description="Create a new comment for the ad. Optional parent for reply.",
+    )
+    def post(self, request, ad_id: int, *args, **kwargs):
+        if not request.user or not getattr(request.user, "is_authenticated", False):
+            return Response({"detail": "Authentication credentials were not provided."}, status=status.HTTP_401_UNAUTHORIZED)
+
+        ad = get_object_or_404(Ad, pk=ad_id)
+        serializer = CommentCreateSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        member = getattr(request.user, "member", request.user)
+        parent_id = serializer.validated_data.get("parent")
+        parent = None
+        if parent_id is not None:
+            parent = get_object_or_404(Comment, pk=parent_id)
+            if parent.ad_id != ad.id:
+                return Response({"parent": "Parent comment belongs to a different ad."}, status=status.HTTP_400_BAD_REQUEST)
+
+        comment = Comment.objects.create(
+            ad=ad,
+            author=member,
+            parent=parent,
+            text=serializer.validated_data["text"],
+        )
+        return Response(CommentSerializer(comment).data, status=status.HTTP_201_CREATED)
+
+
+class CommentDeleteAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[OpenApiParameter(name="id", required=True, type=int, location=OpenApiParameter.PATH)],
+        responses={204: None, 403: {"type": "object"}, 404: {"type": "object"}},
+        description="Delete a comment. Only the author can delete.",
+    )
+    def delete(self, request, comment_id: int, *args, **kwargs):
+        comment = get_object_or_404(Comment, pk=comment_id)
+        member = getattr(request.user, "member", request.user)
+        if comment.author_id != member.id:
+            return Response({"detail": "You do not have permission to delete this comment."}, status=status.HTTP_403_FORBIDDEN)
+        comment.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ToggleCommentLikeAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[OpenApiParameter(name="id", required=True, type=int, location=OpenApiParameter.PATH)],
+        responses={200: {"type": "object", "properties": {"is_liked": {"type": "boolean"}, "likes_count": {"type": "integer"}}, "required": ["is_liked", "likes_count"]}, 404: {"type": "object"}},
+        description="Toggle like on a comment. Updates comment and ad like counters.",
+    )
+    def post(self, request, comment_id: int, *args, **kwargs):
+        comment = get_object_or_404(Comment, pk=comment_id)
+        member = getattr(request.user, "member", request.user)
+
+        like = CommentLike.objects.filter(comment=comment, member=member).first()
+        if like:
+            like.delete()
+            is_liked = False
+        else:
+            CommentLike.objects.create(comment=comment, member=member)
+            is_liked = True
+
+        comment.refresh_from_db(fields=["likes_count"])
+        return Response({"is_liked": is_liked, "likes_count": comment.likes_count}, status=status.HTTP_200_OK)

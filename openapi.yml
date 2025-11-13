@@ -235,6 +235,136 @@ paths:
           description: Unauthorized
         '404':
           description: Not found
+  /api/ads/{id}/comments/:
+    get:
+      operationId: ad_comments_list
+      tags:
+        - comments
+      security: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - in: query
+          name: offset
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - in: query
+          name: parent
+          schema:
+            type: integer
+            nullable: true
+          description: If provided, returns replies for this comment id; otherwise returns top-level comments
+      responses:
+        '200':
+          description: Comments list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Comment'
+                  next_offset:
+                    type: integer
+                    nullable: true
+                required: [items]
+        '404':
+          description: Ad not found
+    post:
+      operationId: ad_comments_create
+      tags:
+        - comments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommentCreateIn'
+      responses:
+        '201':
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Comment'
+        '400':
+          description: Validation error
+        '401':
+          description: Unauthorized
+        '404':
+          description: Ad or parent not found
+  /api/comments/{id}/:
+    delete:
+      operationId: comment_delete
+      tags:
+        - comments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Deleted
+        '403':
+          description: Forbidden
+        '404':
+          description: Not found
+  /api/comments/{id}/like/:
+    post:
+      operationId: comment_like_toggle
+      tags:
+        - comments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Like toggled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_liked:
+                    type: boolean
+                  likes_count:
+                    type: integer
+                required: [is_liked, likes_count]
+        '401':
+          description: Unauthorized
+        '404':
+          description: Not found
   /api/me/favorites/:
     get:
       operationId: me_favorites
@@ -286,6 +416,16 @@ components:
       required:
         - message
         - timestamp
+    MemberMini:
+      type: object
+      properties:
+        id:
+          type: integer
+        username:
+          type: string
+        avatar_url:
+          type: string
+      required: [id, username]
     MemberPublic:
       type: object
       properties:
@@ -438,6 +578,37 @@ components:
         is_favorite:
           type: boolean
       required: [is_favorite]
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        ad:
+          type: integer
+        author:
+          $ref: '#/components/schemas/MemberMini'
+        parent:
+          type: integer
+          nullable: true
+        text:
+          type: string
+        likes_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+        replies_count:
+          type: integer
+      required: [id, ad, author, text, likes_count, created_at, replies_count]
+    CommentCreateIn:
+      type: object
+      properties:
+        text:
+          type: string
+        parent:
+          type: integer
+          nullable: true
+      required: [text]
   securitySchemes:
     bearerAuth:
       type: http

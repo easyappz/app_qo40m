@@ -13,6 +13,9 @@ from .views import (
     ToggleFavoriteAPIView,
     MyFavoritesAPIView,
     MyAdsAPIView,
+    AdCommentsListCreateAPIView,
+    CommentDeleteAPIView,
+    ToggleCommentLikeAPIView,
 )
 
 router = DefaultRouter()
@@ -31,6 +34,12 @@ urlpatterns = [
     path("ads/<int:ad_id>/", AdDetailAPIView.as_view(), name="ad-detail"),
     path("ads/<int:ad_id>/ratings/", RateAdAPIView.as_view(), name="ad-rate"),
     path("ads/<int:ad_id>/favorite/", ToggleFavoriteAPIView.as_view(), name="ad-favorite-toggle"),
+
+    # Comments endpoints
+    path("ads/<int:ad_id>/comments/", AdCommentsListCreateAPIView.as_view(), name="ad-comments"),
+    path("comments/<int:comment_id>/", CommentDeleteAPIView.as_view(), name="comment-delete"),
+    path("comments/<int:comment_id>/like/", ToggleCommentLikeAPIView.as_view(), name="comment-like-toggle"),
+
     path("me/favorites/", MyFavoritesAPIView.as_view(), name="me-favorites"),
     path("me/ads/", MyAdsAPIView.as_view(), name="me-ads"),
 
