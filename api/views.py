@@ -65,7 +65,7 @@ class RegisterAPIView(APIView):
 
 
 class LoginView(APIView):
-    """POST /api/auth/login - issue JWT for Member via username+password or email+password."""
+    """POST /api/auth/login - issue JWT for Member via username_or_email + password."""
 
     authentication_classes: list = []
     permission_classes: list = []
@@ -75,29 +75,37 @@ class LoginView(APIView):
             "application/json": {
                 "type": "object",
                 "properties": {
-                    "username": {"type": "string"},
-                    "email": {"type": "string", "format": "email"},
+                    "username_or_email": {"type": "string"},
                     "password": {"type": "string"},
                 },
-                "required": ["password"],
+                "required": ["username_or_email", "password"],
             }
         },
-        responses={200: {"type": "object", "properties": {"access": {"type": "string"}, "refresh": {"type": "string"}}, "required": ["access", "refresh"]}},
-        description="Obtain JWT tokens by username+password or email+password",
+        responses={
+            200: {
+                "type": "object",
+                "properties": {"access": {"type": "string"}, "refresh": {"type": "string"}},
+                "required": ["access", "refresh"],
+            }
+        },
+        description="Obtain JWT tokens by username_or_email and password",
     )
     def post(self, request, *args, **kwargs):
-        username = request.data.get("username")
-        email = request.data.get("email")
+        # Primary (per OpenAPI)
+        identifier = request.data.get("username_or_email")
         password = request.data.get("password")
 
-        if not password or (not username and not email):
+        # Backward-compatible fallbacks
+        if not identifier:
+            identifier = request.data.get("username") or request.data.get("email")
+        if not password or not identifier:
             return Response(
-                {"detail": "Provide password and either username or email."},
+                {"detail": "Provide 'username_or_email' and 'password'."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
         try:
-            member = Member.objects.get(Q(username=username) | Q(email__iexact=email))
+            member = Member.objects.get(Q(username=identifier) | Q(email__iexact=identifier))
         except Member.DoesNotExist:
             return Response({"detail": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -105,15 +113,27 @@ class LoginView(APIView):
             return Response({"detail": "Invalid credentials."}, status=status.HTTP_401_UNAUTHORIZED)
 
         refresh = RefreshToken.for_user(member)
-        # Ensure user_id claim is present (SimpleJWT already sets it as USER_ID_CLAIM)
         refresh["user_id"] = member.id
-
         tokens = {"refresh": str(refresh), "access": str(refresh.access_token)}
         return Response(tokens, status=status.HTTP_200_OK)
 
 
 class TokenRefreshView(SimpleJWTTokenRefreshView):
-    """POST /api/auth/refresh - exchange refresh for a new access token."""
+    """POST /api/auth/refresh - exchange refresh for a new access token and return both tokens."""
+
+    def post(self, request, *args, **kwargs):
+        resp = super().post(request, *args, **kwargs)
+        try:
+            data = dict(resp.data) if isinstance(resp.data, dict) else {}
+        except Exception:
+            data = {}
+        # Ensure both tokens are present per OpenAPI spec
+        if "refresh" not in data:
+            refresh_in = request.data.get("refresh")
+            if isinstance(refresh_in, str) and refresh_in:
+                data["refresh"] = refresh_in
+        resp.data = data
+        return resp
 
 
 class MeAPIView(APIView):

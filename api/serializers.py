@@ -87,7 +87,8 @@ class MemberUpdateSerializer(serializers.ModelSerializer):
 
 # Ads
 class AdSerializer(serializers.ModelSerializer):
-    owner = serializers.PrimaryKeyRelatedField(read_only=True)
+    owner = MemberSerializer(read_only=True)
+    cover = serializers.SerializerMethodField()
 
     class Meta:
         model = Ad
@@ -99,6 +100,7 @@ class AdSerializer(serializers.ModelSerializer):
             "description",
             "price",
             "photos",
+            "cover",
             "views_count",
             "comments_count",
             "likes_count",
@@ -119,9 +121,20 @@ class AdSerializer(serializers.ModelSerializer):
             "updated_at",
         ]
 
+    def get_cover(self, obj) -> str | None:
+        try:
+            photos = obj.photos or []
+            if isinstance(photos, list) and photos:
+                first = photos[0]
+                return first if isinstance(first, str) and first else None
+        except Exception:
+            return None
+        return None
+
 
 class AdListSerializer(serializers.ModelSerializer):
     owner = serializers.PrimaryKeyRelatedField(read_only=True)
+    cover = serializers.SerializerMethodField()
 
     class Meta:
         model = Ad
@@ -131,6 +144,7 @@ class AdListSerializer(serializers.ModelSerializer):
             "title",
             "price",
             "photos",
+            "cover",
             "views_count",
             "comments_count",
             "likes_count",
@@ -139,6 +153,16 @@ class AdListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_cover(self, obj) -> str | None:
+        try:
+            photos = obj.photos or []
+            if isinstance(photos, list) and photos:
+                first = photos[0]
+                return first if isinstance(first, str) and first else None
+        except Exception:
+            return None
+        return None
 
 
 class RatingInSerializer(serializers.Serializer):
