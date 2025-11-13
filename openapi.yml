@@ -90,8 +90,6 @@ paths:
       operationId: me_retrieve
       tags:
         - me
-      security:
-        - bearerAuth: []
       responses:
         '200':
           description: Current member profile
@@ -105,8 +103,6 @@ paths:
       operationId: me_update
       tags:
         - me
-      security:
-        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -129,8 +125,6 @@ paths:
       operationId: me_favorites
       tags:
         - me
-      security:
-        - bearerAuth: []
       responses:
         '200':
           description: Favorite ads of current member
@@ -147,8 +141,6 @@ paths:
       operationId: me_ads
       tags:
         - me
-      security:
-        - bearerAuth: []
       responses:
         '200':
           description: Ads owned by current member
@@ -165,8 +157,6 @@ paths:
       operationId: me_history
       tags:
         - me
-      security:
-        - bearerAuth: []
       parameters:
         - in: query
           name: limit
@@ -277,8 +267,6 @@ paths:
       operationId: ad_rate
       tags:
         - ads
-      security:
-        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -307,8 +295,6 @@ paths:
       operationId: ad_favorite_toggle
       tags:
         - ads
-      security:
-        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -400,8 +386,6 @@ paths:
       operationId: ad_comments_create
       tags:
         - comments
-      security:
-        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -432,8 +416,6 @@ paths:
       operationId: comment_delete
       tags:
         - comments
-      security:
-        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -452,8 +434,6 @@ paths:
       operationId: comment_like_toggle
       tags:
         - comments
-      security:
-        - bearerAuth: []
       parameters:
         - in: path
           name: id
@@ -492,16 +472,6 @@ components:
       required:
         - message
         - timestamp
-    MemberMini:
-      type: object
-      properties:
-        id:
-          type: integer
-        username:
-          type: string
-        avatar_url:
-          type: string
-      required: [id, username]
     MemberPublic:
       type: object
       properties:
@@ -517,10 +487,7 @@ components:
         created_at:
           type: string
           format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      required: [id, username, email, created_at, updated_at]
+      required: [id, username, email, created_at]
     MemberRegisterIn:
       type: object
       properties:
@@ -539,28 +506,16 @@ components:
       properties:
         username:
           type: string
-        email:
-          type: string
-          format: email
         avatar_url:
           type: string
     AuthLoginIn:
-      oneOf:
-        - type: object
-          properties:
-            username:
-              type: string
-            password:
-              type: string
-          required: [username, password]
-        - type: object
-          properties:
-            email:
-              type: string
-              format: email
-            password:
-              type: string
-          required: [email, password]
+      type: object
+      properties:
+        username_or_email:
+          type: string
+        password:
+          type: string
+      required: [username_or_email, password]
     AuthTokensOut:
       type: object
       properties:
@@ -568,7 +523,7 @@ components:
           type: string
         refresh:
           type: string
-      required: [access]
+      required: [access, refresh]
     ImportAdIn:
       type: object
       properties:
@@ -595,18 +550,15 @@ components:
       properties:
         id:
           type: integer
-        owner:
-          type: integer
-          nullable: true
         title:
           type: string
         price:
           type: integer
           description: Price in minor currency units (cents)
-        photos:
-          type: array
-          items:
-            type: string
+        cover:
+          type: string
+          nullable: true
+          description: First photo URL if available
         views_count:
           type: integer
         comments_count:
@@ -616,51 +568,27 @@ components:
         avg_rating:
           type: number
           format: float
-        ratings_count:
-          type: integer
         created_at:
           type: string
           format: date-time
-      required: [id, title, price, photos, views_count, comments_count, likes_count, avg_rating, ratings_count, created_at]
+      required: [id, title, price, views_count, comments_count, likes_count, avg_rating, created_at]
     AdDetail:
-      type: object
-      properties:
-        id:
-          type: integer
-        owner:
-          type: integer
-          nullable: true
-        source_url:
-          type: string
-        title:
-          type: string
-        description:
-          type: string
-        price:
-          type: integer
-          description: Price in minor currency units (cents)
-        photos:
-          type: array
-          items:
-            type: string
-        views_count:
-          type: integer
-        comments_count:
-          type: integer
-        likes_count:
-          type: integer
-        avg_rating:
-          type: number
-          format: float
-        ratings_count:
-          type: integer
-        created_at:
-          type: string
-          format: date-time
-        updated_at:
-          type: string
-          format: date-time
-      required: [id, title, price, photos, views_count, comments_count, likes_count, avg_rating, ratings_count, created_at, updated_at, source_url]
+      allOf:
+        - $ref: '#/components/schemas/AdCard'
+        - type: object
+          properties:
+            photos:
+              type: array
+              items:
+                type: string
+            description:
+              type: string
+            source_url:
+              type: string
+            owner:
+              $ref: '#/components/schemas/MemberPublic'
+              nullable: true
+          required: [photos, description, source_url]
     RatingIn:
       type: object
       properties:
@@ -683,7 +611,7 @@ components:
         ad:
           type: integer
         author:
-          $ref: '#/components/schemas/MemberMini'
+          $ref: '#/components/schemas/MemberPublic'
         parent:
           type: integer
           nullable: true
@@ -712,20 +640,22 @@ components:
         views_count:
           type: integer
       required: [views_count]
+    HistoryItem:
+      type: object
+      properties:
+        ad:
+          $ref: '#/components/schemas/AdCard'
+        viewed_at:
+          type: string
+          format: date-time
+      required: [ad, viewed_at]
     HistoryList:
       type: object
       properties:
         items:
           type: array
           items:
-            type: object
-            properties:
-              ad:
-                $ref: '#/components/schemas/AdCard'
-              viewed_at:
-                type: string
-                format: date-time
-            required: [ad, viewed_at]
+            $ref: '#/components/schemas/HistoryItem'
       required: [items]
   securitySchemes:
     bearerAuth:
