@@ -184,6 +184,37 @@ paths:
                 $ref: '#/components/schemas/HistoryList'
         '401':
           description: Unauthorized
+  /api/ads/import/:
+    post:
+      operationId: ads_import
+      tags:
+        - ads
+      security: []
+      description: |
+        Import ad metadata from a public Avito URL and create an Ad.
+        Only publicly available metadata is fetched. If blocked by site protections, no circumvention is performed.
+        If a valid JWT is provided, the created Ad will be associated with the current member; otherwise the owner is null.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportAdIn'
+      responses:
+        '201':
+          description: Created ad from imported metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdDetail'
+        '400':
+          description: Bad request
+        '422':
+          description: Unable to fetch metadata (e.g., blocked or missing public data). The client may prompt for manual input.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportError'
   /api/ads/popular/:
     get:
       operationId: ads_popular
@@ -538,6 +569,27 @@ components:
         refresh:
           type: string
       required: [access]
+    ImportAdIn:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+      required: [url]
+    ImportError:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Structured error code.
+          enum: [invalid_url, not_avito, request_failed, blocked, parse_failed, empty]
+        detail:
+          type: string
+        message:
+          type: string
+        note:
+          type: string
+      required: [code, detail]
     AdCard:
       type: object
       properties:

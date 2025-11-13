@@ -9,6 +9,7 @@ from .views import (
     MeAPIView,
     AdsPopularAPIView,
     AdDetailAPIView,
+    AdImportAPIView,
     RateAdAPIView,
     ToggleFavoriteAPIView,
     MyFavoritesAPIView,
@@ -35,6 +36,7 @@ urlpatterns = [
     path("me/history/", MyHistoryAPIView.as_view(), name="me-history"),
 
     # Ads endpoints
+    path("ads/import/", AdImportAPIView.as_view(), name="ads-import"),
     path("ads/popular/", AdsPopularAPIView.as_view(), name="ads-popular"),
     path("ads/<int:ad_id>/", AdDetailAPIView.as_view(), name="ad-detail"),
     path("ads/<int:ad_id>/ratings/", RateAdAPIView.as_view(), name="ad-rate"),

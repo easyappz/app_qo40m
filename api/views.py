@@ -24,7 +24,7 @@ from .serializers import (
 )
 from .models import Member, Ad, Rating, Favorite, Comment, CommentLike, AdView
 from .auth import MemberJWTAuthentication
-from .services import record_unique_view
+from .services import record_unique_view, fetch_avito_metadata
 
 
 class HelloView(APIView):
@@ -217,6 +217,68 @@ class AdDetailAPIView(APIView):
     def get(self, request, ad_id: int, *args, **kwargs):
         ad = get_object_or_404(Ad, pk=ad_id)
         return Response(AdSerializer(ad).data, status=status.HTTP_200_OK)
+
+
+class AdImportAPIView(APIView):
+    """POST /api/ads/import - create Ad from an Avito URL.
+
+    Notes: Only publicly available metadata is fetched. If blocked by site protections, no circumvention is performed.
+    """
+
+    authentication_classes = [MemberJWTAuthentication]
+    permission_classes = [AllowAny]
+
+    @extend_schema(
+        request={
+            "application/json": {
+                "type": "object",
+                "properties": {"url": {"type": "string", "format": "uri"}},
+                "required": ["url"],
+            }
+        },
+        responses={
+            201: AdSerializer,
+            400: {"type": "object"},
+            422: {"type": "object"},
+        },
+        description=(
+            "Import ad metadata from a public Avito URL and create an Ad. "
+            "Only public data is fetched; if blocked by protections, no bypass is attempted."
+        ),
+    )
+    def post(self, request, *args, **kwargs):
+        url = (request.data or {}).get("url")
+        if not url or not isinstance(url, str):
+            return Response({"detail": "Field 'url' is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        result = fetch_avito_metadata(url)
+        if not result.get("ok"):
+            code = result.get("code") or "parse_failed"
+            detail = result.get("detail") or "Failed to fetch metadata."
+            return Response(
+                {
+                    "code": code,
+                    "detail": detail,
+                    "message": "Could not fetch public metadata. Please enter fields manually.",
+                    "note": "No circumvention of site protections is performed.",
+                },
+                status=422,
+            )
+
+        data = result["data"]
+        member = None
+        if getattr(request, "user", None) and getattr(request.user, "is_authenticated", False):
+            member = getattr(request.user, "member", request.user)
+
+        ad = Ad.objects.create(
+            owner=member,
+            source_url=url,
+            title=(data.get("title") or ""),
+            description=(data.get("description") or ""),
+            price=int(data.get("price") or 0),
+            photos=list(data.get("photos") or []),
+        )
+        return Response(AdSerializer(ad).data, status=status.HTTP_201_CREATED)
 
 
 class RateAdAPIView(APIView):
